@@ -1,0 +1,10 @@
+# Face images and embeddings are personal data: never commit them.
+gallery_images/
+*.db
+*.sqlite
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.onnx

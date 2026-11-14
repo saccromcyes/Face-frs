@@ -11,6 +11,13 @@ import os
 import io
 import uvicorn
 
+try:
+    from app.config import MATCH_THRESHOLD, TOP_K
+    from app.matcher import match as match_embedding
+except ImportError:  # run as `python app/main.py`
+    from config import MATCH_THRESHOLD, TOP_K
+    from matcher import match as match_embedding
+
 app = FastAPI(title="FaceFenix API", version="1.0")
 
 # Enable CORS for Streamlit frontend
@@ -113,31 +120,11 @@ async def recognize(file: UploadFile = File(...)):
     if not records:
         raise HTTPException(status_code=400, detail="No registered faces found.")
 
-    best_match = None
-    best_distance = float("inf")
-
-    for db_name, db_embed in records:
-        db_embedding = np.frombuffer(db_embed, dtype=np.float32)
-        distance = np.linalg.norm(emb - db_embedding)
-        if distance < best_distance:
-            best_distance = distance
-            best_match = db_name
-
-    similarity = max(0.0, 1.0 - best_distance)
-
-    # ✅ unified response for Streamlit
-    if best_distance <= 0.8:
-        return {
-            "match": best_match,
-            "similarity": round(float(similarity), 4),
-            "distance": round(float(best_distance), 4)
-        }
-    else:
-        return {
-            "match": None,
-            "similarity": round(float(similarity), 4),
-            "distance": round(float(best_distance), 4)
-        }
+    names = [name for name, _ in records]
+    gallery = np.stack([np.frombuffer(blob, dtype=np.float32) for _, blob in records])
+    # Cosine distance with the configurable MATCH_THRESHOLD (previously a hard-coded Euclidean 0.8,
+    # with "1 - distance" reported as a similarity).
+    return match_embedding(emb, names, gallery, MATCH_THRESHOLD, TOP_K)
 
 
 

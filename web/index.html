@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceFenix</title>
+  <meta name="description" content="Face recognition and a blink-based liveness check that run entirely in your browser. No image or face data is ever uploaded.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23101418'/><path d='M8 12V8h4M20 8h4v4M24 20v4h-4M12 24H8v-4' stroke='%2300A3C7' stroke-width='2.4' fill='none' stroke-linecap='round'/><circle cx='16' cy='16' r='4' fill='white'/></svg>">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-in">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--ink)"/><path d="M8 12V8h4M20 8h4v4M24 20v4h-4M12 24H8v-4" stroke="var(--lens)" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="16" cy="16" r="4" fill="var(--paper)"/></svg>
+        FaceFenix
+      </div>
+      <p class="promise"><span class="lock" aria-hidden="true"></span>Runs entirely in your browser. Nothing you show the camera is uploaded.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="stage-col" aria-label="Camera">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <img id="photo" alt="" hidden>
+        <canvas id="overlay"></canvas>
+        <div class="stage-empty" id="stage-empty">
+          <p id="load-status">Loading the face models (about 7 MB, once)…</p>
+          <div class="stage-actions">
+            <button type="button" class="primary" id="start-camera" disabled>Start camera</button>
+            <label class="secondary file" id="upload-label" aria-disabled="true">Use a photo instead<input type="file" id="upload" accept="image/*" disabled></label>
+          </div>
+        </div>
+      </div>
+      <div class="meter-row" aria-live="polite">
+        <span id="m-backend">Backend —</span>
+        <span id="m-ms">— ms per frame</span>
+        <span id="m-fps">— fps</span>
+        <span id="m-faces">0 faces</span>
+        <button type="button" class="link" id="stop" hidden>Stop camera</button>
+        <label class="link file" id="upload2-label" hidden>Another photo<input type="file" id="upload2" accept="image/*"></label>
+      </div>
+      <p class="error" id="error" role="alert" hidden></p>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <div class="step">
+        <h2>Enrol a face</h2>
+        <p class="hint">Type a name, then look at the camera. Five samples are averaged into one face print: 128 numbers, no image.</p>
+        <form id="enrol-form" class="enrol">
+          <label class="sr-only" for="enrol-name">Name</label>
+          <input id="enrol-name" maxlength="40" placeholder="Name" autocomplete="off" required>
+          <button type="submit" class="primary" id="enrol-btn" disabled>Enrol</button>
+        </form>
+        <div class="progress" id="enrol-progress" hidden><b></b></div>
+        <p class="note" id="enrol-note"></p>
+      </div>
+
+      <div class="step">
+        <h2>Recognise</h2>
+        <p class="hint">Each face on screen is compared with everyone enrolled. Lower distance means more alike; above the threshold it's labelled unknown.</p>
+        <label class="threshold">
+          <span>Match threshold <output id="th-out">0.50</output></span>
+          <input type="range" id="threshold" min="0.30" max="0.70" step="0.01" value="0.50">
+          <span class="scale"><span>Stricter: fewer false matches</span><span>Looser: fewer missed matches</span></span>
+        </label>
+        <ul class="people" id="people"><li class="empty">Nobody enrolled yet.</li></ul>
+      </div>
+
+      <div class="step">
+        <h2>Liveness check</h2>
+        <p class="hint">A printed photo can fool recognition, but it can't blink. Blink twice within ten seconds.</p>
+        <button type="button" class="secondary" id="live-btn" disabled>Start liveness check</button>
+        <canvas id="ear" class="ear" width="320" height="64" aria-label="Eye openness over time"></canvas>
+        <p class="live-result" id="live-result"></p>
+      </div>
+
+      <details class="how">
+        <summary>How it works</summary>
+        <ol>
+          <li><b>Detect</b> faces with a Tiny Face Detector (a 190 KB network).</li>
+          <li><b>Locate</b> 68 landmarks per face: eyes, brows, nose, mouth, jaw.</li>
+          <li><b>Embed</b> each aligned face as a 128-number descriptor with a ResNet-34-style recognition network.</li>
+          <li><b>Match</b> by Euclidean distance to the stored face prints; the threshold trades false matches against missed ones.</li>
+          <li><b>Liveness:</b> the eye aspect ratio (eye height ÷ width from the landmarks) drops sharply during a blink; two dips within ten seconds pass.</li>
+        </ol>
+        <p>All models run with TensorFlow.js on your GPU (WebGL) or CPU. Face prints are kept in this browser's storage so they survive a reload, until you forget them. The only network requests are the one-time model downloads.</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="foot wrap">
+    <p>Built by <a href="https://github.com/saccromcyes">Aakarsh Dutt Sharma</a>. <a href="https://github.com/saccromcyes/Face-frs">Source code</a>, including the Python server version (MTCNN + FaceNet, ONNX export). Face models: <a href="https://github.com/vladmandic/face-api">vladmandic/face-api</a> (MIT).</p>
+  </footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
